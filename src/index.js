@@ -4,12 +4,14 @@ const csv = require("csvtojson");
 const {Parser} = require('json2csv');
 const DB = require('./db').DB
 const fs = require('fs')
+const dotenv = require('dotenv');
+dotenv.config();
 
-let hostName = "93.104.210.37";
-let userName = "worten";
-let password = "45k|2sTN?q4MDq^";
-
-function timeConverter(UNIX_timestamp) {
+let hostName = process.env.CFM_HOST;
+let userName = process.env.CFM_USER;
+let password = process.env.CFM_PASS;
+let port     = process.env.CFM_PORT;
+ function timeConverter(UNIX_timestamp) {
     const a = new Date(UNIX_timestamp);
     return a.getDate() + '/' + (a.getMonth() + 1) + '/' + a.getFullYear();
 }
@@ -185,7 +187,7 @@ class CRAWLO_FTP_MONITOR {
         return new Promise((resolve, reject) => {
             this.sftp.connect({
                 host: hostName,
-                port: "22",
+                port: port,
                 username: userName,
                 password: password,
             })
