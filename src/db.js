@@ -4,15 +4,13 @@ const fs = require('fs')
 class DB {
 
     constructor() {
-        this.data = require('./db.json')
+        this.data = require('./storage/db.json')
     }
-
 
     get() {
-        this.data = require('./db.json')
+        this.data = require('./storage/db.json')
         return this.data
     }
-
 
     add(x) {
         return new Promise((resolve, reject) => {
@@ -23,12 +21,10 @@ class DB {
         })
     }
 
-
     find(x) {
         this.get()
         return this.data.filter(l => l.date === x);
     }
-
 
     delete(x) {
         return new Promise((resolve, reject) => {
@@ -39,13 +35,12 @@ class DB {
         })
     }
 
-
     update(obj) {
         return new Promise((resolve, reject) => {
             this.data = this.data.map((el) => {
                 if (el.date === obj.date)
                     el = obj
-                return el
+                 return el
             })
             this.save()
                 .then((res) => resolve(res))
@@ -53,10 +48,9 @@ class DB {
         })
     }
 
-
     save() {
         return new Promise((resolve, reject) => {
-            fs.writeFile('./src/db.json', JSON.stringify(this.data), 'utf8', (err) => {
+            fs.writeFile('./src/storage/db.json', JSON.stringify(this.data), 'utf8', (err) => {
                 if (err)
                     reject(err)
                 else
@@ -64,7 +58,6 @@ class DB {
             });
         })
     }
-
 
     addOrUpdate(obj) {
         return new Promise(async (resolve, reject) => {
@@ -83,11 +76,9 @@ class DB {
                     // console.log('Created new document for the object')
                     resolve(this.add(obj))
                 }
-
             } catch (err) {
                 reject(err)
             }
-
         })
     }
 
