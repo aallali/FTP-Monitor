@@ -3,152 +3,145 @@ const Client = require("ssh2-sftp-client");
 const csv = require("csvtojson");
 const {Parser} = require('json2csv');
 const DB = require('./db').DB
+const Notif = require('./notification').default
 const fs = require('fs')
 const dotenv = require('dotenv');
+
 dotenv.config();
 
 let hostName = process.env.CFM_HOST;
 let userName = process.env.CFM_USER;
 let password = process.env.CFM_PASS;
-let port     = process.env.CFM_PORT;
- function timeConverter(UNIX_timestamp) {
+let port = process.env.CFM_PORT;
+
+function timeConverter(UNIX_timestamp) {
     const a = new Date(UNIX_timestamp);
     return a.getDate() + '/' + (a.getMonth() + 1) + '/' + a.getFullYear();
+}
+
+function compDate(d1, d2) {
+    d1 = d1.split('/').map(l => parseInt(l))
+    d2 = d2.split('/').map(l => parseInt(l))
+    if (d1 === d2)
+        return 0
+    else {
+        if (d1[2] === d2[2]) {
+            if (d1[1] === d2[1]) {
+                if (d1[0] === d2[0]) {
+                    return 0
+                } else return d1[0] - d2[0]
+            } else return d1[1] - d2[1]
+        } else return d1[2] - d2[2]
+    }
 }
 
 class CRAWLO_FTP_MONITOR {
     constructor() {
         this.sftp = new Client();
-        this.type = 'first'; // ['first' || 'second' || ''] <= for both
-        this.list = []
         this.db = new DB()
+        this.notif = new Notif({
+            GMAIL: process.env.CFM_GMAIL,
+            PASS: process.env.CFM_GMAIL_PASS,
+            Receiver_users: process.env.CFM_RECEIVER_USERS.split(' ')
+        })
+        this.dailyinterval = 12 * 3600 * 1000
+        this.type = 'first'; // ['first' || 'second' || '']   '' <= for both
+        this.data = []
+        this.list = []
         this.currentFile = {
             path: '/uploadsWorten/file_name_here', size: 0, rows: 0, date: 0, data: []
         }
-        this.rapport = {
-            today: {},
-            previous: {}
-        }
+        this.rapport = {}
         this.fields = ['date', 'size', 'rows']
-        //console.log(this.db.get())
-
+        this.calcInterval()
     }
+
 
     async init() {
         try {
-
             await this.connect()
             this.list = await this.getlist()
-            //console.log(this.list.map(l => [l.name,(l.size / 1048576).toFixed(0)]))
-            let dt = this.db.get()
-            let keys = []
-            for (let i in dt) {
-                // console.log(Object.keys(dt[i]).filter(l => l !== 'date' && l !== 'size' && l !== 'rows'))
-                keys = keys.concat(Object.keys(dt[i]).filter(l => l !== 'date' && l !== 'size' && l !== 'rows'))
-            }
-            keys = [...new Set(keys)]
-            this.fields = this.fields.concat(keys)
-            dt.forEach(el => {
-
-                keys.forEach(key => {
-                    if (el[key] == null) {
-                        el[key] = 0
-                    }
-                })
-            })
-
-            function compDate(d1, d2) {
-                d1 = d1.split('/').map(l => parseInt(l))
-                d2 = d2.split('/').map(l => parseInt(l))
-                if (d1 === d2)
-                    return 0
-                else {
-                    if (d1[2] == d2[2]) {
-                        if (d1[1] == d2[1]) {
-                            if (d1[0] == d2[0]) {
-                                return 0
-                            } else return d1[0] - d2[0]
-                        } else return d1[1] - d2[1]
-                    } else return d1[2] - d2[2]
-                }
-            }
-
-            dt = dt.sort((a, b) => compDate(b.date, a.date))
-            fs.writeFileSync('./src/CFM-Report-'+timeConverter(Date.now()).replace(/\//g, '-')+'.csv', this.json2csv(dt))
-            // let csvStr = this.json2csv(dt)
-            // csv()
-            //     .fromString(csvStr)
-            //     .then((csvRow)=>{
-            //        // console.log(csvRow) // => [["1","2","3"], ["4","5","6"], ["7","8","9"]]
-            //     })
-            // for (let i = 0; i < dt.length; i++) {
-            //     let el = dt[i]
-            //     let keys = Object.keys(el).filter(l => l !== 'date' && l !== 'size' && l !== 'rows')
-            //     keys.map(l => {
-            //         if(l === '') {
-            //             Object.defineProperty(el, 'null',
-            //                 Object.getOwnPropertyDescriptor(el, l));
-            //             delete el[l];
-            //         }
-            //         else if (l !== l.replace(/^"|"$|https:\/\//g, '')) {
-            //             Object.defineProperty(el, l.replace(/^"|"$|https:\/\//g, ''),
-            //                 Object.getOwnPropertyDescriptor(el, l));
-            //             delete el[l];
-            //         }
-            //     })
-            //     await this.db.addOrUpdate(el)
-            // }
-            // console.log('Cleaning done.')
-
-
-            //this.setup()
-
+            // console.log(this.list.map(l => [l.name, (l.size / 1048576).toFixed(0)]))
+            await this.daily()
+            setInterval(async () => {
+                await this.daily()
+            }, this.dailyinterval)
+            return true
 
         } catch (err) {
             console.log(err)
             throw {
-                code: 'CFM.connection',
+                code: 'CFM.init',
                 msg: err
             }
         }
 
     }
 
-    async genRapport() {
-
+    async calcInterval() {
+        this.dailyinterval = parseInt(process.env.CFM_DAILYINTERVAL) * 3600000
     }
 
     async daily() {
-        // this.lastFile = this.list.sort(
-        //     (a, b) => b.modifyTime > a.modifyTime || -(b.modifyTime < a.modifyTime)
-        // )[0].name;
-        //this.currentFile.path = '/uploadsWorten/' + this.lastFile
-        //this.fields = Object.keys(this.rapport.today)
-        this.setCurrentFile(await this.file2Json(this.currentFile.path))
-        this.db.addOrUpdate(this.getRepport().today)
-        this.db.save()
-    }
-
-    async setup() {
-
-        for (let i in this.list) {
+        this.list = await this.getlist() // fetch new list of CSV Files in the FTP
+        for (let i in this.list) { // Loop through it to get the non downlaoded files
             const l = this.list[i]
             let doc = await this.db.find(l.date)
             if (doc.length === 0) {
-                console.log('On ...' + (l.size / 1048576).toFixed(2))
+                console.log('Downloading ... ' + l.name + ' :: ' + (l.size / 1048576).toFixed(2))
                 await this.extractData(l.name)
-                console.log(':: File added :: ' + l.name)
-            } else console.log('== > already handled == >' + l.name)
+                console.log('File added :: ' + l.name)
+            }
+        }
+        console.log('Cleaning data fetched...')
+        this.data = this.db.get() // fetch latest data added to database
+        for (let i = 0; i < this.data.length; i++) {
+            let el = this.data[i]
+            const keys = Object.keys(el).filter(l => l !== 'date' && l !== 'size' && l !== 'rows')
+            for (let x = 0; x < keys.length; x++) {
+                const l = keys[x]
+                if (l !== l.replace(/^"|"$|https:\/\//g, '')) {
+                    Object.defineProperty(el, l.replace(/^"|"$|https:\/\//g, ''),
+                        Object.getOwnPropertyDescriptor(el, l))
+                    delete el[l];
+                }
+                if (/^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/.test(l) === false) {
+                    delete el[l];
+                }
+            }
+            await this.db.update(el)
         }
 
-
+        let keys = []
+        for (let i = 0; i < this.data.length; i++) {
+            keys = keys.concat(Object.keys(this.data[i]).filter(l => l !== 'date' && l !== 'size' && l !== 'rows'))
+        }
+        keys = [...new Set(keys)]
+        this.fields = ['date', 'size', 'rows'].concat(keys)
+        this.data.forEach(el => {
+            keys.forEach(key => {
+                if (el[key] == null) {
+                    el[key] = 0
+                }
+            })
+        })
+        console.log('Cleaning done.')
+        console.log('Sorting the final report Data by date DESC ...')
+        this.data = this.data.sort((a, b) => compDate(b.date, a.date))
+        console.log('Creating the Report CSV file ...')
+        let Repfilename = './src/storage/CFM-Report-' + timeConverter(Date.now()).replace(/\//g, '-') + '.csv'
+        fs.writeFileSync(Repfilename, this.json2csv(this.data))
+        console.log('Report CSV file Created Successfully !')
+        await this.notif.send(Repfilename)
+        console.log('Notifications  Sent to :: ' + process.env.CFM_RECEIVER_USERS.split(' '))
+        console.log('---------------------------------' +  timeConverter(Date.now()).replace(/\//g, '-') + '----------------------------------')
     }
 
     async extractData(name) {
         this.currentFile.path = '/uploadsWorten/' + name
         let json = await this.file2Json(this.currentFile.path)
         this.setCurrentFile(json)
-        await this.db.addOrUpdate(this.getRepport().today)
+        await this.db.addOrUpdate(this.getRepport())
         await this.db.save()
     }
 
@@ -160,7 +153,6 @@ class CRAWLO_FTP_MONITOR {
         this.currentFile.rows = fileData.length
         this.currentFile.data = fileData
             .map(l => l.Website.match(/(?<=www\.)((.*?)\.[a-z]{2,3})/) ? l.Website.match(/(?<=www\.)((.*?)\.[a-z]{2,3})/)[0] : l.Website)
-        console.log(fileData.length)
         let obj = {}
         const data = this.currentFile.data
         for (let i = 0; i < data.length; i++) {
@@ -174,7 +166,7 @@ class CRAWLO_FTP_MONITOR {
     }
 
     getRepport() {
-        this.rapport.today = {
+        this.rapport = {
             date: this.currentFile.date,
             size: (this.currentFile.size / 1048576).toFixed(2),
             rows: this.currentFile.rows,
@@ -240,20 +232,16 @@ class CRAWLO_FTP_MONITOR {
     }
 
     json2csv(jsonObj) {
-
         // const { parseAsync } = require('json2csv');
 
-
         const opts = {fields: this.fields};
-        console.log(opts)
         try {
 
             const parser = new Parser(opts);
-            const csv = parser.parse(jsonObj);
             // parseAsync(jsonObj, opts)
             //     .then(csv => console.log(csv))
             //     .catch(err => console.error(err));
-            return csv
+            return parser.parse(jsonObj)
         } catch (err) {
             console.error(err);
             throw err
