@@ -4,16 +4,23 @@
   "description": "Simple Script to verify CSV formats uploaded to FTP server from the backend, and make reports about it",
   "main": "src/index.js",
   "scripts": {
-    "run": "node src/index.js",
+    "start": "node src/index.js",
     "dev": "nodemon src/index.js"
   },
-  "keywords": [],
+  "keywords": [
+    "crawlo",
+    "ftp",
+    "monitor",
+    "csv",
+    "excel"
+  ],
   "author": "Abdellah ALLALI",
   "license": "ISC",
   "dependencies": {
     "csvtojson": "^2.0.10",
     "dotenv": "^8.2.0",
     "json2csv": "^5.0.5",
+    "nodemailer": "^6.4.17",
     "ssh2-sftp-client": "^6.0.1"
   },
   "devDependencies": {}
