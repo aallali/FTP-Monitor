@@ -84,7 +84,7 @@ class CRAWLO_FTP_MONITOR {
 
     async daily() {
         this.list = await this.getlist() // fetch new list of CSV Files in the FTP
-        for (let i in this.list) { // Loop through it to get the non downlaoded files
+        for (let i in this.list) { // Loop through , to get the non downlaoded files
             const l = this.list[i]
             let doc = await this.db.find(l.date)
             if (doc.length === 0) {
