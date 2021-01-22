@@ -23,7 +23,7 @@ class DB {
 
     find(x) {
         this.get()
-        return this.data.filter(l => l.date === x);
+        return this.data.filter(l => l.date == x.date && l.type == x.type);
     }
 
     delete(x) {
