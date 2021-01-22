@@ -20,8 +20,8 @@ exports.default = class Notification {
         this.mailOptions = {
             from: this.config.GMAIL,
             to: this.config.Receiver_users,
-            subject: `Crawlo FTP Monitor | Daily Check`,
-            text: `this a test of the daily FTP excels monitor mail `,//TODO:
+            subject: `Crawlo FTP Monitor | ${this.config.TYPE} Final | Daily Check`,
+            text: `this is an official Report  of the daily FTP excels monitoring ,  ${this.config.TYPE} Final `,//TODO:
             attachments: [
                 {
                     path: 'file_path'
@@ -30,8 +30,10 @@ exports.default = class Notification {
         }
 
     }
-    //lakil@crawlo sarah@crawlo omar@crawlo
-    send(attachment) {
+    send(attachment, type) {
+         this.config.TYPE = type
+        this.mailOptions.subject= `Crawlo FTP Monitor | ${this.config.TYPE} Final | Daily Check`,
+        this.mailOptions.text= `this is an official Report  of the daily FTP excels monitoring ,  ${this.config.TYPE} Final `,
         this.mailOptions.attachments[0].path = attachment
         return new Promise((resolve, reject) => {
             this.smtpTrans.sendMail(this.mailOptions, (err, res) => {
