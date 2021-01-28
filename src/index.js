@@ -1,26 +1,12 @@
 // Required modules
-const Client = require("ssh2-sftp-client");
-const csv = require("csvtojson");
-const { Parser } = require('json2csv');
-const DB = require('./db').DB
-const Notif = require('./notification').default
-const fs = require('fs')
-const dotenv = require('dotenv');
-const { resolve } = require("path");
-
+import Client from "ssh2-sftp-client"
+import csv from "csvtojson"
+import fs from 'fs'
+import dotenv from 'dotenv'
+import DB from './db.js'
+import Notif from './notification.js'
+import Progress from './Progress.js'
 dotenv.config();
-
-let hostName = process.env.CFM_HOST;
-let userName = process.env.CFM_USER;
-let password = process.env.CFM_PASS;
-let port = process.env.CFM_PORT;
-
-
-
-
-function miliseconds(hrs, min, sec) {
-    return ((hrs * 60 * 60 + min * 60 + sec) * 1000);
-}
 
 function timeConverter(UNIX_timestamp) {
     const a = new Date(UNIX_timestamp);
@@ -47,17 +33,17 @@ class CRAWLO_FTP_MONITOR {
     constructor() {
         this.sftp = new Client();
         this.db = new DB()
+
         this.notif = new Notif({
             GMAIL: process.env.CFM_GMAIL,
             PASS: process.env.CFM_GMAIL_PASS,
             Receiver_users: process.env.CFM_RECEIVER_USERS.split(' ')
         })
-        this.dailyinterval = 12 * 3600 * 1000
-        this.type = 'first'; // ['first' || 'second' || '']   '' <= for both
+        this.type = ''; // ['first' || 'second' || '']   '' <= for both
         this.data = []
         this.list = []
         this.currentFile = {
-            path: '/uploadsWorten/file_name_here', size: 0, rows: 0, date: 0, data: []
+            path: '', size: 0, rows: 0, date: 0, data: []
         }
         this.rapport = {}
         this.timer = []
@@ -68,23 +54,20 @@ class CRAWLO_FTP_MONITOR {
     async init() {
         try {
             await this.connect()
-            this.type = ''
-
             await this.fetchAllFiles();
             // this.type = 'first'
             // await this.daily()
             // this.type = 'second'
             // await this.daily()
-            console.log(process.env.CFM_RECEIVER_USERS.split(' '))
+            console.log(process.env.CFM_RECEIVER_USERS.split(' ').map(l => '[ ' + l.replace(/@crawlo\.com/, '') + ' ]').sort())
             this.dailyTimer('first', 8, 7, 0, 1)
             this.dailyTimer('second', 11, 10, 0, 1)
             setInterval(() => {
                 if (this.timer.length == 2 && this.onProgress === false) {
-//                    console.clear()
                     process.stdout.write(`${this.timer.join(' | ')}\r`)
                     this.timer = []
                 }
-            },1 * 1000)
+            }, 5000)
 
 
             return true
@@ -116,7 +99,7 @@ class CRAWLO_FTP_MONITOR {
                 console.log('Later today, latest notification has been sent already at 9:05 AM today');
             }
             else {
-               
+
                 dtAlarm.setDate(dtAlarm.getDate() + 1);
                 console.log('Next Notif tomorrow at :' + dtAlarm);
             }
@@ -148,22 +131,6 @@ class CRAWLO_FTP_MONITOR {
         })
 
     }
-    reformDb() {
-        this.type = ''
-        return new Promise(async (resolve, reject) => {
-            const dbl = this.db.get()
-            for (let i = 0; i < dbl.length; i++) {
-                //dbl[i].type = "first"
-                //await this.db.update(dbl[i])
-                Object.keys(dbl[i]).filter(l => l != 'date' && l != 'size' && l != 'rows' && l != 'type').forEach(async el => {
-                    if (/^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/.test(el) === false)
-                        console.log(el)
-                })
-            }
-            console.log('Done')
-            resolve(dbl)
-        })
-    }
     async fetchAllFiles() {
         return new Promise(async (resolve, reject) => {
             try {
@@ -184,7 +151,7 @@ class CRAWLO_FTP_MONITOR {
                 if (undownlaoded.length != 0) {
                     console.log(`there is ${undownlaoded.length} files to be downloaded`)
                     for (let j in undownlaoded) {
-                        console.log('Downloading [' + j + '] ... ' + undownlaoded[j][0] + ' :: ' + (undownlaoded[j][2] / 1048576).toFixed(2) + ' || ' + new Date())
+                        console.log('Downloading [' + j + '] ... ' + undownlaoded[j][0] + ' :: ' + (undownlaoded[j][2] / 1048576).toFixed(2))
                         await this.extractData(undownlaoded[j][0], undownlaoded[j][1])
                     }
                     console.log('*************  ... DONE downloading ... *************')
@@ -203,7 +170,6 @@ class CRAWLO_FTP_MONITOR {
         await this.fetchAllFiles()
         this.data = this.db.get() // fetch latest data added to database
         this.data = this.data.filter(l => l.type === this.type)
-        console.log(`there is ${this.data.length} files of the type : ${this.type}-final.`)
         for (let i = 0; i < this.data.length; i++) {
             let el = this.data[i]
             const keys = Object.keys(el).filter(l => l !== 'date' && l !== 'size' && l !== 'rows' && l != 'type')
@@ -236,17 +202,21 @@ class CRAWLO_FTP_MONITOR {
         this.data = this.data.sort((a, b) => compDate(b.date, a.date))
         let Repfilename = `./src/storage/CFM-Report-${timeConverter(Date.now()).replace(/\//g, '-')}-${this.type}-final.csv`
         fs.writeFileSync(Repfilename, this.json2csv(this.data))
-        console.log('Report CSV file Created Successfully ! ' + Date.now())
+        console.log('Report CSV file Created Successfully ! ')
         await this.notif.send(Repfilename, this.type)
-        console.log('Notifications  Sent to :: ' + process.env.CFM_RECEIVER_USERS.split(' ') + Date.now())
+        console.log('Notifications  Sent to :: ' + process.env.CFM_RECEIVER_USERS.split(' '))
         console.log('---------------------------------' + timeConverter(Date.now()).replace(/\//g, '-') + '----------------------------------')
         this.onProgress = false
     }
 
     async extractData(name, type) {
         this.currentFile.path = '/uploadsWorten/' + name
-        let json = await this.file2Json(this.currentFile.path)
+        const file = this.list.filter(l => l.name === this.currentFile.path.split('/').pop())[0]
+
+        this.currentFile.size = file.size
+        let json = await this.file2Json(this.currentFile.path, this.currentFile.size)
         json.type = type
+
         this.setCurrentFile(json)
         await this.db.addOrUpdate(this.getRepport())
         await this.db.save()
@@ -264,6 +234,7 @@ class CRAWLO_FTP_MONITOR {
         let obj = {}
         const data = this.currentFile.data
         for (let i = 0; i < data.length; i++) {
+            data[i] = data[i].replace(/\\""|"\\"/g, '"')
             if (obj[data[i]])
                 obj[data[i]] += 1
             else
@@ -283,14 +254,13 @@ class CRAWLO_FTP_MONITOR {
         }
         return this.rapport
     }
-
     connect() {
         return new Promise((resolve, reject) => {
             this.sftp.connect({
-                host: hostName,
-                port: port,
-                username: userName,
-                password: password,
+                host: process.env.CFM_HOST,
+                port: process.env.CFM_PORT || 22,
+                username: process.env.CFM_USER,
+                password: process.env.CFM_PASS,
                 keepaliveInterval: 2000,
                 keepaliveCountMax: 20
             })
@@ -313,11 +283,10 @@ class CRAWLO_FTP_MONITOR {
         })
     }
 
-    get(path) {
+    get(path, size) {
         return new Promise((resolve, reject) => {
-            this.sftp.get(path)
-                .then(file => resolve(file))
-                .catch(err => reject(err))
+            let ws = new Progress(size, resolve)
+            this.sftp.get(path, ws, { autoClose: false })
         })
     }
 
@@ -330,10 +299,10 @@ class CRAWLO_FTP_MONITOR {
         })
     }
 
-    file2Json(path) {
+    file2Json(path, size) {
         return new Promise(async (resolve, reject) => {
             try {
-                const file = await this.get(path)
+                const file = await this.get(path, size)
                 const json = await this.toJSON(file)
                 resolve(json)
             } catch (err) {
@@ -343,23 +312,15 @@ class CRAWLO_FTP_MONITOR {
     }
 
     json2csv(jsonObj) {
-        // const { parseAsync } = require('json2csv');
-
         const opts = { fields: this.fields };
         try {
-
             const parser = new Parser(opts);
-            // parseAsync(jsonObj, opts)
-            //     .then(csv => console.log(csv))
-            //     .catch(err => console.error(err));
             return parser.parse(jsonObj)
         } catch (err) {
             console.error(err);
             throw err
         }
     }
-
-
 }
 
 let CFM = new CRAWLO_FTP_MONITOR()
