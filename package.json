@@ -3,13 +3,28 @@
   "version": "1.0.0",
   "description": "Simple Script to verify CSV formats uploaded to FTP server from the backend, and make reports about it",
   "main": "src/index.js",
+  "type": "module",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "build": "babel src/ -d dist/",
+    "build:linux": "clear && npm run del:linux && npm run build",
+    "build:win": "cls && npm run del:win && npm run build",
+
+    "del:win": "del dist",
+    "del:linux": "rm -rf dist",
+
+    "deploy:linux": "npm run build:linux && node dist/index.js",
+    "deploy:win": "npm run build:win && npm run start",
+
+    "start": "node dist/index.js",
+    "start:linux": "clear && npm run build:linux && node dist/index.js",
+    "start:win": "cls && npm run build:win && node dist/index.js",
+    
+    "dev": "nodemon — exec babel-node src/index.js"
   },
   "keywords": [
     "crawlo",
-    "ftp",
+    "sftp",
+    "ssh2",
     "monitor",
     "csv",
     "excel"
@@ -17,11 +32,20 @@
   "author": "Abdellah ALLALI",
   "license": "ISC",
   "dependencies": {
+    "@babel/runtime": "^7.12.5",
     "csvtojson": "^2.0.10",
     "dotenv": "^8.2.0",
     "json2csv": "^5.0.5",
     "nodemailer": "^6.4.17",
-    "ssh2-sftp-client": "^6.0.1"
+    "nodemon": "^2.0.7",
+    "ssh2-sftp-client": "^6.0.1",
+    "stream": "0.0.2"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@babel/cli": "^7.12.10",
+    "@babel/core": "^7.12.10",
+    "@babel/node": "^7.12.10",
+    "@babel/plugin-transform-runtime": "^7.12.10",
+    "@babel/preset-env": "^7.12.11"
+  }
 }
