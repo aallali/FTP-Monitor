@@ -1,14 +1,23 @@
 
-const fs = require('fs')
-
-class DB {
+import fs from 'fs'
+ class DB {
 
     constructor() {
-        this.data = require('./storage/db.json')
+        this.data =  null
     }
-
-    get() {
-        this.data = require('./storage/db.json')
+    loadb() {
+        return new Promise((resolve, reject) => {
+            fs.readFile('./src/storage/db.json', 'utf8', (err, jsonString) => {
+                if (err) {
+                    reject(err)
+                    return
+                }
+                resolve(JSON.parse(jsonString))
+            })
+        })
+    }
+    async get() {
+        this.data = await this.loadb()
         return this.data
     }
 
@@ -21,8 +30,8 @@ class DB {
         })
     }
 
-    find(x) {
-        this.get()
+    async find(x) {
+        await this.get()
         return this.data.filter(l => l.date == x.date && l.type == x.type);
     }
 
@@ -40,7 +49,7 @@ class DB {
             this.data = this.data.map((el) => {
                 if (el.date === obj.date)
                     el = obj
-                 return el
+                return el
             })
             this.save()
                 .then((res) => resolve(res))
@@ -83,5 +92,5 @@ class DB {
     }
 
 }
-
-exports.DB = DB
+ 
+export default DB
