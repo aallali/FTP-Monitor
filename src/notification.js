@@ -1,7 +1,7 @@
 
-const nodemailer = require('nodemailer');
+import  nodemailer from 'nodemailer'
 
-exports.default = class Notification {
+export default   class Notification {
     constructor(config) {
         this.config = config
         this.smtpTrans = nodemailer.createTransport({
@@ -20,8 +20,8 @@ exports.default = class Notification {
         this.mailOptions = {
             from: this.config.GMAIL,
             to: this.config.Receiver_users,
-            subject: `Crawlo FTP Monitor | ${this.config.TYPE} Final | Daily Check`,
-            text: `this is an official Report  of the daily FTP excels monitoring ,  ${this.config.TYPE} Final `,//TODO:
+            subject: ``,
+            text: ``,//TODO:
             attachments: [
                 {
                     path: 'file_path'
