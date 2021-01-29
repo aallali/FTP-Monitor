@@ -6,6 +6,7 @@ import dotenv from 'dotenv'
 import DB from './db.js'
 import Notif from './notification.js'
 import Progress from './Progress.js'
+import { Parser } from "json2csv"
 dotenv.config();
 
 function timeConverter(UNIX_timestamp) {
@@ -28,7 +29,13 @@ function compDate(d1, d2) {
         } else return d1[2] - d2[2]
     }
 }
-
+function blok(s) {
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            resolve()
+        }, s * 1000)
+    })
+}
 class CRAWLO_FTP_MONITOR {
     constructor() {
         this.sftp = new Client();
@@ -55,8 +62,8 @@ class CRAWLO_FTP_MONITOR {
         try {
             await this.connect()
             await this.fetchAllFiles();
-            // this.type = 'first'
-            // await this.daily()
+            this.type = 'first'
+            await this.daily()
             // this.type = 'second'
             // await this.daily()
             console.log(process.env.CFM_RECEIVER_USERS.split(' ').map(l => '[ ' + l.replace(/@crawlo\.com/, '') + ' ]').sort())
@@ -150,11 +157,14 @@ class CRAWLO_FTP_MONITOR {
                 }
                 if (undownlaoded.length != 0) {
                     console.log(`there is ${undownlaoded.length} files to be downloaded`)
+                    console.log('Start Download at : ' + new Date())
                     for (let j in undownlaoded) {
-                        console.log('Downloading [' + j + '] ... ' + undownlaoded[j][0] + ' :: ' + (undownlaoded[j][2] / 1048576).toFixed(2))
+                        console.log('Downloading [' + j + '] ... [' + undownlaoded[j][0] + '] :: [' + (undownlaoded[j][2] / 1048576).toFixed(2) + ']')
                         await this.extractData(undownlaoded[j][0], undownlaoded[j][1])
+                        await blok(1)
                     }
                     console.log('*************  ... DONE downloading ... *************')
+                    console.log('Done Download at : ' + new Date())
                 }
 
                 resolve()
@@ -168,7 +178,7 @@ class CRAWLO_FTP_MONITOR {
         this.onProgress = true
         this.list = await this.getlist() // fetch new list of CSV Files in the FTP
         await this.fetchAllFiles()
-        this.data = this.db.get() // fetch latest data added to database
+        this.data = await this.db.get() // fetch latest data added to database
         this.data = this.data.filter(l => l.type === this.type)
         for (let i = 0; i < this.data.length; i++) {
             let el = this.data[i]
